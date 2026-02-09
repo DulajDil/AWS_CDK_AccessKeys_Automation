@@ -68,7 +68,11 @@ If a user already has 2 keys, rotation is skipped — it was already done in a p
 ```
 
 ---
+## Architecture
 
+<img width="881" height="651" alt="AccessKeys_Automation" src="https://github.com/user-attachments/assets/80a7cd55-f0d9-4c6d-b293-769ca0821a82" />
+
+---
 ## Prerequisites
 
 - Node.js 20+
