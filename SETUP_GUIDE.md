@@ -1,176 +1,120 @@
-# IAM Access Key Rotation - Complete Setup Guide
+# Setup Guide
 
-## 🎉 What You've Built
+Step-by-step instructions for deploying the IAM Access Key Rotation stack.
 
-A complete AWS CDK project that automatically rotates IAM access keys using:
-- **Lambda Function** (Node.js/TypeScript) - Does the actual rotation work
-- **EventBridge Rule** - Triggers Lambda daily at 10 AM UTC
-- **Secrets Manager** - Stores new access keys securely
-- **SES** - Sends email notifications
-- **IAM Roles** - Proper permissions for Lambda
+## What This Deploys
 
----
+- A Lambda function (Node.js/TypeScript) that rotates IAM access keys
+- An EventBridge rule that triggers the Lambda on a schedule
+- IAM permissions for the Lambda to manage keys, secrets, and emails
 
-## 📁 Project Structure
+## Key Rotation Lifecycle
 
 ```
-iam-access-key-rotation/
-├── bin/
-│   └── iam-access-key-rotation.ts          # CDK app entry point
-├── lib/
-│   └── iam-access-key-rotation-stack.ts    # CDK stack definition (infrastructure)
-├── lambda/
-│   └── access_key_rotation/
-│       ├── index.ts                        # Main Lambda handler
-│       ├── services/
-│       │   ├── iamService.ts              # IAM operations
-│       │   ├── secretsService.ts          # Secrets Manager operations
-│       │   └── sesService.ts              # Email notifications
-│       ├── utils/
-│       │   ├── constants.ts               # Email templates & constants
-│       │   ├── dateUtils.ts               # Date calculations
-│       │   └── logger.ts                  # Structured logging
-│       ├── types/
-│       │   └── interfaces.ts              # TypeScript interfaces
-│       ├── package.json                   # Lambda dependencies
-│       └── tsconfig.json                  # Lambda TypeScript config
-├── test/
-│   └── iam-access-key-rotation.test.ts    # Unit tests
-├── package.json                            # CDK dependencies
-├── tsconfig.json                          # CDK TypeScript config
-└── cdk.json                               # CDK configuration
+Day 0    — Key created
+Day 90   — New key created, old key still works (user has 10 days to switch)
+Day 100  — Old key deactivated (forces the switch)
+Day 110  — Old key permanently deleted
 ```
 
----
-
-## 🔄 How It Works
-
-### Daily Workflow:
-
-1. **EventBridge triggers Lambda** at 10 AM UTC every day
-2. **Lambda lists all IAM users** in the account
-3. **For each user's access keys**, Lambda checks the age:
-
-   - **< 90 days**: ✅ No action (key is still fresh)
-   
-   - **90-99 days**: 🔄 **ROTATION**
-     - Creates new access key
-     - Stores in Secrets Manager: `iam-access-key/{username}`
-     - Sends email: "New key created, retrieve from Secrets Manager"
-   
-   - **100-109 days**: ⚠️ **DEACTIVATION**
-     - Deactivates old key (stops working)
-     - Sends email: "Old key deactivated, will be deleted in 10 days"
-   
-   - **110+ days**: 🗑️ **DELETION**
-     - Permanently deletes old key
-     - Sends email: "Old key deleted"
-
-4. **CloudWatch Logs** capture all activity for auditing
+Unused keys (never accessed after 30 days) are deleted automatically and the admin is notified.
 
 ---
 
-## ⚙️ Configuration (Already Set in Your Stack)
+## Step 1: Verify SES Email
+
+The Lambda sends notifications via SES. You need a verified sender email.
+
+1. Go to AWS Console > SES > Identities
+2. Create and verify the email address you'll use as `SENDER_EMAIL`
+
+If SES is in sandbox mode, you also need to verify each recipient email.
+
+## Step 2: Bootstrap CDK
+
+If you haven't bootstrapped CDK in this account/region yet:
+
+```bash
+npx cdk bootstrap --profile your-profile
+```
+
+## Step 3: Configure
+
+Edit `lib/iam-access-key-rotation-stack.ts` to set your environment variables:
 
 ```typescript
 environment: {
-  ROTATION_DAYS: "30",        // Creates new key at 30 days (you set this)
-  DEACTIVATE_DAYS: "100",     // Deactivates old key at 100 days
-  DELETION_DAYS: "110",       // Deletes key at 110 days
-  SENDER_EMAIL: "support@nanoputian.io",    // SES verified email
-  DRY_RUN: "false",          // Set to "true" for testing without changes
+  ROTATION_DAYS: "90",
+  DEACTIVATE_DAYS: "100",
+  DELETION_DAYS: "110",
+  UNUSED_KEY_THRESHOLD_DAYS: "30",
+  SENDER_EMAIL: "your-verified-email@example.com",
+  DRY_RUN: "true",  // Start with dry run
 }
 ```
 
----
+## Step 4: Test with Dry Run
 
-## 🚀 Next Steps to Deploy
-
-### Step 1: Verify SES Email
-
-Your Lambda will send emails via SES. You need to verify your email:
+Deploy with `DRY_RUN: "true"` first to see what the Lambda would do without making changes:
 
 ```bash
-# Go to AWS Console > SES > Email Addresses > Verify a New Email Address
-# Verify: support@nanoputian.io
-```
-
-If you're in SES Sandbox mode, you'll also need to verify recipient emails.
-
-### Step 2: Bootstrap CDK (if not done)
-
-```bash
-export AWS_PROFILE=hitman
-cdk bootstrap
-```
-
-### Step 3: Build and Deploy
-
-```bash
-# From project root
 npm run build
-
-# Review what will be created
-npx cdk synth
-
-# Preview changes
-npx cdk diff --profile hitman
-
-# Deploy!
-npx cdk deploy --profile hitman
+npx cdk deploy --profile your-profile
 ```
 
-### Step 4: Test in DRY RUN Mode First
+Then trigger the Lambda manually from the AWS Console (Lambda > Test tab, empty `{}` event) and check CloudWatch Logs.
 
-Before going live, test with DRY_RUN enabled:
+## Step 5: Go Live
 
-1. Update stack to set `DRY_RUN: "true"`
-2. Deploy
-3. Manually invoke Lambda from AWS Console
-4. Check CloudWatch Logs to see what would happen
-5. Verify emails are sent
-6. Once confident, set `DRY_RUN: "false"` and redeploy
+Once you're happy with the dry run logs, set `DRY_RUN: "false"` and redeploy.
 
----
+## Step 6: Add Email Tags to IAM Users
 
-## 🧪 Testing
-
-### Manual Lambda Invocation:
-
-1. Go to AWS Console > Lambda > AccessKeyRotationFunction
-2. Click "Test" tab
-3. Create a test event (empty JSON `{}` is fine)
-4. Click "Test" button
-5. Check CloudWatch Logs for output
-
-### Check CloudWatch Logs:
+The Lambda looks for an `Email` tag on each IAM user to know where to send notifications. If no tag is found, it falls back to `SENDER_EMAIL`.
 
 ```bash
-# View logs
-aws logs tail /aws/lambda/IamAccessKeyRotationStack-AccessKeyRotationFunction --follow --profile hitman
+aws iam tag-user \
+  --user-name john.doe \
+  --tags Key=Email,Value=john.doe@example.com \
+  --profile your-profile
 ```
 
 ---
 
-## 📊 Monitoring
+## Testing
 
-### CloudWatch Logs Insights Queries:
+Run the test suite:
 
-**Summary of all rotations:**
+```bash
+npm test
+```
+
+This runs 60 tests covering the action logic, Lambda handler, date utilities, and CDK stack.
+
+---
+
+## Monitoring
+
+### CloudWatch Logs Insights
+
+Summary of all rotations:
+
 ```
 fields @timestamp, summary.keysRotated, summary.keysDeactivated, summary.keysDeleted
 | filter @message like /rotation completed/
 | sort @timestamp desc
 ```
 
-**Find errors:**
+Find errors:
+
 ```
 fields @timestamp, userName, message
 | filter level = "ERROR"
 | sort @timestamp desc
 ```
 
-**Track specific user:**
+Track a specific user:
+
 ```
 fields @timestamp, action, message
 | filter userName = "your-username"
@@ -179,115 +123,50 @@ fields @timestamp, action, message
 
 ---
 
-## 🔐 Security Best Practices
+## Troubleshooting
 
-✅ **Implemented in your code:**
-- Least privilege IAM permissions
-- Secrets stored in AWS Secrets Manager
-- Structured logging (no sensitive data in logs)
-- Email notifications at each stage
-- Dry run mode for testing
-- Admin error notifications
+**Lambda fails with IAM permission error**
+- Check the Lambda execution role has the correct permissions
+- Review the IAM policies in `lib/iam-access-key-rotation-stack.ts`
 
----
-
-## 📝 Important Notes
-
-### IAM User Email Tags
-
-The Lambda tries to get user emails from IAM user tags. To add email tags:
-
-```bash
-aws iam tag-user \
-  --user-name john.doe \
-  --tags Key=Email,Value=john.doe@nanoputian.io \
-  --profile hitman
-```
-
-If no email tag exists, it uses `SENDER_EMAIL` as fallback.
-
-### Access Key Limit
-
-AWS allows maximum **2 access keys per user**. If a user already has 2 keys, the Lambda will skip rotation and log a warning.
-
-### Exempting Users
-
-To exempt specific users from rotation (like service accounts), you can modify the Lambda code to check for a specific tag or group membership.
-
----
-
-## 🐛 Troubleshooting
-
-### Lambda fails with IAM permission error
-- Check Lambda execution role has correct IAM permissions
-- Verify the IAM policies in your CDK stack
-
-### Emails not sending
-- Verify sender email in SES
-- Check SES is out of sandbox mode (or verify recipient emails)
+**Emails not sending**
+- Make sure the sender email is verified in SES
+- If in SES sandbox mode, recipient emails must also be verified
 - Check CloudWatch Logs for SES errors
 
-### Keys not appearing in Secrets Manager
-- Check Lambda has `secretsmanager:CreateSecret` permission
-- Verify secret naming: `iam-access-key/{username}`
-- Check CloudWatch Logs for Secrets Manager errors
+**Keys not appearing in Secrets Manager**
+- Confirm the Lambda has `secretsmanager:CreateSecret` and `secretsmanager:TagResource` permissions
+- Secrets are stored as `iam-access-key/{username}`
+
+**Lambda keeps creating new keys every run**
+- This was a known issue that's been fixed. The Lambda now skips rotation if the user already has 2 keys.
 
 ---
 
-## 📚 Resources
-
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [IAM Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
-- [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/)
-- [Amazon SES](https://docs.aws.amazon.com/ses/)
-
----
-
-## 🎯 Quick Commands Cheat Sheet
+## Useful Commands
 
 ```bash
 # Build
 npm run build
 
-# Synthesize CloudFormation
-npx cdk synth
+# Run tests
+npm test
 
-# Show what will change
-npx cdk diff --profile hitman
+# Preview changes
+npx cdk diff --profile your-profile
 
 # Deploy
-npx cdk deploy --profile hitman
-
-# Destroy (cleanup)
-npx cdk destroy --profile hitman
+npx cdk deploy --profile your-profile
 
 # View Lambda logs
-aws logs tail /aws/lambda/IamAccessKeyRotationStack-AccessKeyRotationFunction --follow --profile hitman
+aws logs tail /aws/lambda/IamAccessKeyRotationStack-AccessKeyRotationFunction --follow --profile your-profile
 
 # Invoke Lambda manually
 aws lambda invoke \
   --function-name IamAccessKeyRotationStack-AccessKeyRotationFunction \
-  --profile hitman \
+  --profile your-profile \
   response.json
+
+# Tear down
+npx cdk destroy --profile your-profile
 ```
-
----
-
-## ✅ Deployment Checklist
-
-- [ ] SES sender email verified
-- [ ] AWS profile configured (`hitman`)
-- [ ] CDK bootstrapped
-- [ ] Code built successfully (`npm run build`)
-- [ ] Test with `DRY_RUN: "true"` first
-- [ ] Deploy to AWS
-- [ ] Manually test Lambda function
-- [ ] Verify CloudWatch Logs
-- [ ] Verify email notifications work
-- [ ] Set `DRY_RUN: "false"` for production
-- [ ] Add email tags to IAM users (optional)
-- [ ] Set up CloudWatch alarms (optional)
-
----
-
-**You're all set!** Your Lambda code is complete and production-ready. 🚀

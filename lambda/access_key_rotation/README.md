@@ -1,6 +1,6 @@
 # Lambda Function - IAM Access Key Rotation
 
-This Lambda function automatically rotates IAM access keys based on their age.
+This Lambda function handles automated IAM access key rotation based on key age.
 
 ## Structure
 
@@ -14,8 +14,9 @@ lambda/access_key_rotation/
 │   ├── secretsService.ts      # Secrets Manager operations
 │   └── sesService.ts          # Email notifications
 ├── utils/
-│   ├── constants.ts           # Constants and email templates
+│   ├── constants.ts           # Constants and email subjects
 │   ├── dateUtils.ts           # Date calculations
+│   ├── emailTemplates.ts      # HTML email templates
 │   └── logger.ts              # Structured logging
 └── types/
     └── interfaces.ts          # TypeScript interfaces
@@ -23,52 +24,43 @@ lambda/access_key_rotation/
 
 ## How It Works
 
-1. **EventBridge triggers Lambda daily** at the scheduled time
-2. **Lambda lists all IAM users** and their access keys
-3. **For each access key**, it checks the age:
-   - **90+ days**: Creates new key, stores in Secrets Manager, sends email
-   - **100+ days**: Deactivates old key, sends warning email
-   - **110+ days**: Permanently deletes key, sends confirmation email
+1. EventBridge triggers the Lambda on a schedule
+2. Lambda fetches all IAM users and their access keys
+3. For each key, it checks the age and takes the appropriate action:
+   - **< 90 days** — No action needed
+   - **90+ days (1 key)** — Creates a new key, stores it in Secrets Manager, emails the user
+   - **100+ days** — Deactivates the old key, emails a warning
+   - **110+ days (inactive)** — Permanently deletes the old key, emails confirmation
+   - **30+ days (never used)** — Deletes the unused key, notifies admin
 
-## Key Features
-
-- ✅ Automatic key rotation
-- ✅ Stores new keys in AWS Secrets Manager
-- ✅ Email notifications at each stage
-- ✅ Dry run mode for testing
-- ✅ Structured logging for CloudWatch
-- ✅ Error handling and admin notifications
+If a user already has 2 keys, rotation is skipped (it was already done).
 
 ## Environment Variables
 
-Set in CDK stack:
-- `ROTATION_DAYS`: Days before creating new key (default: 90)
-- `DEACTIVATION_DAYS`: Days before deactivating old key (default: 100)
-- `DELETION_DAYS`: Days before deleting key (default: 110)
-- `SENDER_EMAIL`: Verified SES email for sending notifications
-- `DRY_RUN`: Set to 'true' for testing without making changes
+These are set in the CDK stack (`lib/iam-access-key-rotation-stack.ts`):
 
-## Installation
+| Variable | Default | Description |
+|---|---|---|
+| `ROTATION_DAYS` | 90 | Days before creating a new key |
+| `DEACTIVATION_DAYS` | 100 | Days before deactivating the old key |
+| `DELETION_DAYS` | 110 | Days before permanently deleting the old key |
+| `UNUSED_KEY_THRESHOLD_DAYS` | 30 | Days before deleting a never-used key |
+| `SENDER_EMAIL` | — | Verified SES email for sending notifications |
+| `DRY_RUN` | false | Set to `true` to log actions without executing them |
 
-The Lambda code is automatically bundled by CDK using esbuild. No manual installation needed!
+## Local Development
 
-CDK will:
-1. Bundle all TypeScript files
-2. Install dependencies
-3. Deploy to AWS Lambda
+The Lambda code is bundled automatically by CDK using esbuild — no manual build step needed.
 
-## Testing Locally (Optional)
-
-If you want to test locally before deploying:
+If you want to install dependencies locally (for IDE support):
 
 ```bash
 cd lambda/access_key_rotation
 npm install
-npm run build  # If you add a build script
 ```
 
 ## Notes
 
-- AWS SDK v3 clients are used (tree-shakeable, smaller bundle size)
-- CDK's NodejsFunction automatically excludes AWS SDK from bundle (already in Lambda runtime)
-- Structured JSON logging for CloudWatch Insights queries
+- Uses AWS SDK v3 clients (tree-shakeable, smaller bundle)
+- CDK's `NodejsFunction` excludes the AWS SDK from the bundle since it's already in the Lambda runtime
+- All logs are structured JSON for CloudWatch Insights queries
