@@ -1,5 +1,7 @@
 # IAM Access Key Rotation
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Automated IAM access key rotation for a single AWS account, built with AWS CDK.
 
 Uses Lambda, EventBridge, Secrets Manager, and SES to handle the full key lifecycle: rotation, deactivation, deletion, and unused key cleanup.
