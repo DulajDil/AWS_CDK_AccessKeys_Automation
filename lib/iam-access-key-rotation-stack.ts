@@ -30,7 +30,7 @@ export class IamAccessKeyRotationStack extends cdk.Stack {
         DEACTIVATE_DAYS: "100",
         DELETION_DAYS: "110",
         UNUSED_KEY_THRESHOLD_DAYS: "30",  // Delete keys that are 30+ days old and never used
-        SENDER_EMAIL: `connect.${process.env.ENV || 'prd'}@notifications.nanoputian.io`,
+        SENDER_EMAIL: `example@domain.com`,
         DRY_RUN: "false",
       },
     });
