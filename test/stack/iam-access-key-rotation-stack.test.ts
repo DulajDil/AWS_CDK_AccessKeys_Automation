@@ -154,7 +154,7 @@ describe('IamAccessKeyRotationStack', () => {
   describe('Stack Outputs', () => {
     it('should output the Lambda function name', () => {
       template.hasOutput('LambdaFunctionName', {
-        Description: 'Name of the Lambda function',
+        Description: 'Name of the IAM access key rotation Lambda function',
       });
     });
   });

@@ -1,7 +1,17 @@
+/**
+ * HTML email templates used by the SES service.
+ *
+ * Each template is a function that accepts dynamic values and returns an
+ * HTML string. The templates are intentionally kept simple so they render
+ * well in most email clients.
+ */
 
+/** Prefix used to namespace secrets in AWS Secrets Manager. */
 export const SECRET_NAME_PREFIX = 'iam-access-key';
 
 export const EMAIL_TEMPLATES = {
+
+  /** Sent when a new key is created (rotation). Tells the user how to retrieve it. */
   ROTATION: (username: string, oldKeyId: string, newKeyId: string, deactivationDate: string) => `
       <h2>IAM Access Key Rotated</h2>
       <p>Hello,</p>
@@ -22,6 +32,7 @@ export const EMAIL_TEMPLATES = {
       <p>If you need assistance, please contact your AWS support team.</p>
     `,
 
+  /** Sent when an old key is deactivated. Warns about upcoming deletion. */
   DEACTIVATION: (username: string, keyId: string, deletionDate: string) => `
       <h2>IAM Access Key Deactivation Warning</h2>
       <p>Hello,</p>
@@ -35,6 +46,7 @@ export const EMAIL_TEMPLATES = {
       <p><strong>Warning:</strong> This key will be permanently deleted on ${deletionDate}.</p>
     `,
 
+  /** Sent when an old key is permanently deleted. */
   DELETION: (username: string, keyId: string) => `
       <h2>IAM Access Key Deleted</h2>
       <p>Hello,</p>
@@ -46,6 +58,7 @@ export const EMAIL_TEMPLATES = {
       <p>Please ensure you are using the new credentials from AWS Secrets Manager.</p>
     `,
 
+  /** Sent to admin when an unused key is automatically deleted. */
   UNUSED_KEY_DELETED: (username: string, keyId: string, keyAge: number) => `
       <h2>Unused IAM Access Key Deleted</h2>
       <p>Hello Support Team,</p>
@@ -60,6 +73,7 @@ export const EMAIL_TEMPLATES = {
       <p>If this user requires access keys, new keys can be generated and properly distributed.</p>
     `,
 
+  /** Sent to admin when an error occurs while processing a user's keys. */
   ERROR: (username: string, error: string) => `
       <h2>IAM Access Key Rotation Error</h2>
       <p>Hello,</p>

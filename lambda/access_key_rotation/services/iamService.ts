@@ -1,4 +1,10 @@
-// IAM Service - Handles all IAM operations
+/**
+ * IAM Service — Wrapper around the AWS IAM SDK.
+ *
+ * Provides helper functions for the common IAM operations the rotation
+ * Lambda needs: listing users, listing/creating/deleting/updating access
+ * keys, and reading user metadata (email tag).
+ */
 
 import {
   IAMClient,
@@ -15,52 +21,89 @@ import {
 import { Logger } from '../utils/logger';
 import { AccessKeyInfo } from '../types/interfaces';
 
+/** Shared IAM client — reused across invocations in the same Lambda container. */
 const iamClient = new IAMClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
+// ---------------------------------------------------------------------------
+// User operations
+// ---------------------------------------------------------------------------
+
+/** Fetch all IAM users in the account. */
 export async function listIamUsers(): Promise<User[]> {
   try {
-    Logger.info('Fetching all IAM users');
-    const command = new ListUsersCommand({});
-    const response = await iamClient.send(command);
-    Logger.info(`Found ${response.Users?.length || 0} IAM users`);
+    Logger.info('Fetching IAM users');
+    const response = await iamClient.send(new ListUsersCommand({}));
+    const count = response.Users?.length ?? 0;
+    Logger.info(`Found ${count} IAM user(s)`);
     return response.Users || [];
   } catch (error) {
-    Logger.error('Error listing IAM users', error);
+    Logger.error('Failed to list IAM users', error);
     throw error;
   }
 }
 
+/**
+ * Look up the user's email address from their IAM tags.
+ * Returns `undefined` if no "Email" / "email" tag is set.
+ */
+export async function getUserEmail(username: string): Promise<string | undefined> {
+  try {
+    const response = await iamClient.send(new GetUserCommand({ UserName: username }));
+    const emailTag = response.User?.Tags?.find(
+      (tag: any) => tag.Key === 'Email' || tag.Key === 'email',
+    );
+    return emailTag?.Value;
+  } catch (error) {
+    Logger.warning(`Could not retrieve email tag for user ${username}`, { error });
+    return undefined;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Access key operations
+// ---------------------------------------------------------------------------
+
+/**
+ * List all access keys for a given IAM user and return them as
+ * normalised `AccessKeyInfo` objects.
+ */
 export async function listAccessKeys(username: string): Promise<AccessKeyInfo[]> {
   try {
-    const command = new ListAccessKeysCommand({ UserName: username });
-    const response = await iamClient.send(command);
+    const response = await iamClient.send(
+      new ListAccessKeysCommand({ UserName: username }),
+    );
 
-    const keys: AccessKeyInfo[] = (response.AccessKeyMetadata || []).map((key: AccessKeyMetadata) => ({
-      accessKeyId: key.AccessKeyId!,
-      createDate: key.CreateDate!,
-      status: key.Status as 'Active' | 'Inactive',
-      userName: key.UserName!,
-    }));
+    const keys: AccessKeyInfo[] = (response.AccessKeyMetadata || []).map(
+      (key: AccessKeyMetadata) => ({
+        accessKeyId: key.AccessKeyId!,
+        createDate: key.CreateDate!,
+        status: key.Status as 'Active' | 'Inactive',
+        userName: key.UserName!,
+      }),
+    );
 
-    Logger.debug(`Found ${keys.length} access keys for user ${username}`);
+    Logger.debug(`Found ${keys.length} access key(s) for user ${username}`);
     return keys;
   } catch (error) {
-    Logger.error(`Error listing access keys for user ${username}`, error);
+    Logger.error(`Failed to list access keys for user ${username}`, error);
     throw error;
   }
 }
 
-export async function createAccessKey(username: string): Promise<{ accessKeyId: string; secretAccessKey: string }> {
+/** Create a new access key pair for the given user. */
+export async function createAccessKey(
+  username: string,
+): Promise<{ accessKeyId: string; secretAccessKey: string }> {
   try {
-    Logger.info(`Creating new access key for user ${username}`);
-    const command = new CreateAccessKeyCommand({ UserName: username });
-    const response = await iamClient.send(command);
+    const response = await iamClient.send(
+      new CreateAccessKeyCommand({ UserName: username }),
+    );
 
     if (!response.AccessKey) {
-      throw new Error('Failed to create access key');
+      throw new Error('IAM returned empty AccessKey — creation may have failed');
     }
 
-    Logger.info(`Successfully created new access key for user ${username}`, {
+    Logger.info(`Created new access key for user ${username}`, {
       keyId: response.AccessKey.AccessKeyId,
     });
 
@@ -69,74 +112,62 @@ export async function createAccessKey(username: string): Promise<{ accessKeyId: 
       secretAccessKey: response.AccessKey.SecretAccessKey!,
     };
   } catch (error) {
-    Logger.error(`Error creating access key for user ${username}`, error);
+    Logger.error(`Failed to create access key for user ${username}`, error);
     throw error;
   }
 }
 
+/** Permanently delete an access key. */
 export async function deleteAccessKey(username: string, accessKeyId: string): Promise<void> {
   try {
-    Logger.info(`Deleting access key ${accessKeyId} for user ${username}`);
-    const command = new DeleteAccessKeyCommand({
-      UserName: username,
-      AccessKeyId: accessKeyId,
-    });
-    await iamClient.send(command);
-    Logger.info(`Successfully deleted access key ${accessKeyId} for user ${username}`);
+    await iamClient.send(
+      new DeleteAccessKeyCommand({ UserName: username, AccessKeyId: accessKeyId }),
+    );
+    Logger.info(`Deleted access key ${accessKeyId} for user ${username}`);
   } catch (error) {
-    Logger.error(`Error deleting access key ${accessKeyId} for user ${username}`, error);
+    Logger.error(`Failed to delete access key ${accessKeyId} for user ${username}`, error);
     throw error;
   }
 }
 
+/** Set an access key to Active or Inactive. */
 export async function updateAccessKeyStatus(
   username: string,
   accessKeyId: string,
-  status: 'Active' | 'Inactive'
+  status: 'Active' | 'Inactive',
 ): Promise<void> {
   try {
-    Logger.info(`Updating access key ${accessKeyId} status to ${status} for user ${username}`);
-    const command = new UpdateAccessKeyCommand({
-      UserName: username,
-      AccessKeyId: accessKeyId,
-      Status: status,
-    });
-    await iamClient.send(command);
-    Logger.info(`Successfully updated access key ${accessKeyId} status to ${status}`);
+    await iamClient.send(
+      new UpdateAccessKeyCommand({
+        UserName: username,
+        AccessKeyId: accessKeyId,
+        Status: status,
+      }),
+    );
+    Logger.info(`Updated key ${accessKeyId} to ${status} for user ${username}`);
   } catch (error) {
-    Logger.error(`Error updating access key ${accessKeyId} status`, error);
+    Logger.error(`Failed to update key ${accessKeyId} status for user ${username}`, error);
     throw error;
   }
 }
 
-export async function getUserEmail(username: string): Promise<string | undefined> {
-  try {
-    const command = new GetUserCommand({ UserName: username });
-    const response = await iamClient.send(command);
-
-    // Try to get email from user tags
-    const emailTag = response.User?.Tags?.find((tag: any) => tag.Key === 'Email' || tag.Key === 'email');
-    return emailTag?.Value;
-  } catch (error) {
-    Logger.warning(`Could not retrieve email for user ${username}`, { error });
-    return undefined;
-  }
-}
-
+/**
+ * Check when an access key was last used.
+ * Returns `null` if the key has never been used.
+ */
 export async function getAccessKeyLastUsed(accessKeyId: string): Promise<Date | null> {
   try {
-    const command = new GetAccessKeyLastUsedCommand({ AccessKeyId: accessKeyId });
-    const response = await iamClient.send(command);
+    const response = await iamClient.send(
+      new GetAccessKeyLastUsedCommand({ AccessKeyId: accessKeyId }),
+    );
 
-    // If LastUsedDate is undefined, the key has never been used
     if (!response.AccessKeyLastUsed?.LastUsedDate) {
-      Logger.debug(`Access key ${accessKeyId} has never been used`);
       return null;
     }
 
     return response.AccessKeyLastUsed.LastUsedDate;
   } catch (error) {
-    Logger.error(`Error getting last used date for key ${accessKeyId}`, error);
+    Logger.error(`Failed to get last-used date for key ${accessKeyId}`, error);
     return null;
   }
 }
