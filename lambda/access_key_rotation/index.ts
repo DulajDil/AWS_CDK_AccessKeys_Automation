@@ -31,7 +31,7 @@ const config: Config = {
   deletionDays: parseInt(process.env.DELETION_DAYS || '110'),
   unusedKeyThresholdDays: parseInt(process.env.UNUSED_KEY_THRESHOLD_DAYS || '30'),
   senderEmail: process.env.SENDER_EMAIL!,
-  dryRun: process.env.DRY_RUN === 'false',
+  dryRun: process.env.DRY_RUN === 'true',
 };
 
 // ---------------------------------------------------------------------------
