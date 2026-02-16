@@ -7,8 +7,8 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "clean:lambda": "find lambda -name '*.js' -not -path '*/node_modules/*' -delete && find lambda -name '*.d.ts' -not -path '*/node_modules/*' -delete",
-    "pretest": "npm run clean:lambda",
+    "clean": "find lambda test -name '*.js' -not -path '*/node_modules/*' -delete && find lambda test -name '*.d.ts' -not -path '*/node_modules/*' -delete",
+    "pretest": "npm run clean",
     "test": "jest --silent",
     "cdk": "npm run pretest && npm run build && npm run test && npx cdk synth && npx cdk deploy",
     "destroy": "npx cdk destroy"
