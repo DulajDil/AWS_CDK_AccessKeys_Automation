@@ -2,7 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-This project idea originated from [AWS Prescriptive Guidance - Automatically rotate IAM user access keys](https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/automatically-rotate-iam-user-access-keys-at-scale-with-aws-organizations-and-aws-secrets-manager.html).
+This project idea originated from [aws-samples/aws-iam-access-key-auto-rotation](https://github.com/aws-samples/aws-iam-access-key-auto-rotation).
+
 Automated IAM access key rotation for a single AWS account, built with AWS CDK.
 
 Uses Lambda, EventBridge, Secrets Manager, and SES to handle the full key lifecycle: rotation, deactivation, deletion, and unused key cleanup.

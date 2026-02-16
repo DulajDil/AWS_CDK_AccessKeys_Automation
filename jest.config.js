@@ -3,7 +3,11 @@ module.exports = {
   roots: ['<rootDir>/test'],
   testMatch: ['**/*.test.ts'],
   transform: {
-    '^.+\\.tsx?$': 'ts-jest'
+    '^.+\\.tsx?$': ['ts-jest', {
+      tsconfig: 'tsconfig.jest.json',
+    }],
   },
-  modulePaths: ['<rootDir>/lambda/access_key_rotation/node_modules/'],
+  moduleNameMapper: {
+    '^@aws-sdk/(.*)$': '<rootDir>/node_modules/@aws-sdk/$1',
+  },
 };

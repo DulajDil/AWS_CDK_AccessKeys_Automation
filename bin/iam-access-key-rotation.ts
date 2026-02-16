@@ -1,20 +1,20 @@
 #!/usr/bin/env node
+
+/**
+ * CDK App entry point — instantiates the IAM Access Key Rotation stack.
+ *
+ * The stack is deployed into the account and region implied by the current
+ * AWS CLI configuration (CDK_DEFAULT_ACCOUNT / CDK_DEFAULT_REGION).
+ */
+
 import * as cdk from 'aws-cdk-lib/core';
 import { IamAccessKeyRotationStack } from '../lib/iam-access-key-rotation-stack';
 
 const app = new cdk.App();
+
 new IamAccessKeyRotationStack(app, 'IamAccessKeyRotationStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
-
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION,
+  },
 });

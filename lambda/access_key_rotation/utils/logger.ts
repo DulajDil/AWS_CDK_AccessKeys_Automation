@@ -1,7 +1,20 @@
-// Structured logging utility for CloudWatch
-
+/**
+ * Structured JSON logger for CloudWatch.
+ *
+ * Every log entry is a single JSON line with a consistent shape so that
+ * CloudWatch Insights queries can filter by level, timestamp, or any
+ * metadata field.
+ *
+ * Levels:
+ *   INFO    – Normal operational messages (start/stop, success, counts).
+ *   WARNING – Recoverable issues that may need attention.
+ *   ERROR   – Failures that need investigation.
+ *   DEBUG   – Verbose detail useful only during development or debugging.
+ */
 export class Logger {
-  static info(message: string, metadata?: any) {
+
+  /** Log an informational message (normal operations). */
+  static info(message: string, metadata?: Record<string, unknown>) {
     console.log(JSON.stringify({
       level: 'INFO',
       message,
@@ -10,18 +23,24 @@ export class Logger {
     }));
   }
 
-  static error(message: string, error?: any, metadata?: any) {
-    console.log(JSON.stringify({
+  /**
+   * Log an error with optional Error object.
+   * Uses console.error so CloudWatch marks it as an error entry.
+   */
+  static error(message: string, error?: unknown, metadata?: Record<string, unknown>) {
+    const err = error instanceof Error ? error : undefined;
+    console.error(JSON.stringify({
       level: 'ERROR',
       message,
-      error: error?.message || error,
-      stack: error?.stack,
+      error: err?.message ?? error,
+      stack: err?.stack,
       timestamp: new Date().toISOString(),
       ...metadata,
     }));
   }
 
-  static warning(message: string, metadata?: any) {
+  /** Log a warning (recoverable issue that may need attention). */
+  static warning(message: string, metadata?: Record<string, unknown>) {
     console.warn(JSON.stringify({
       level: 'WARNING',
       message,
@@ -30,7 +49,8 @@ export class Logger {
     }));
   }
 
-  static debug(message: string, metadata?: any) {
+  /** Log a debug message (verbose detail for development / troubleshooting). */
+  static debug(message: string, metadata?: Record<string, unknown>) {
     console.log(JSON.stringify({
       level: 'DEBUG',
       message,

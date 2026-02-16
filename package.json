@@ -7,11 +7,16 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
+    "clean": "find lambda test -name '*.js' -not -path '*/node_modules/*' -delete && find lambda test -name '*.d.ts' -not -path '*/node_modules/*' -delete",
+    "pretest": "npm run clean",
     "test": "jest --silent",
-    "cdk": "npm run build && npm run test && npx cdk synth && npx cdk deploy",
-    "destory": "npx cdk destroy"
+    "cdk": "npm run pretest && npm run build && npm run test && npx cdk synth && npx cdk deploy",
+    "destroy": "npx cdk destroy"
   },
   "devDependencies": {
+    "@aws-sdk/client-iam": "^3.987.0",
+    "@aws-sdk/client-secrets-manager": "^3.987.0",
+    "@aws-sdk/client-ses": "^3.987.0",
     "@types/jest": "^30",
     "@types/node": "^24.10.1",
     "aws-cdk": "2.1104.0",
